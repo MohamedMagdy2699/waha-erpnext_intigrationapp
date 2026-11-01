@@ -277,3 +277,7 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+
+# Customer form WhatsApp button
+doctype_js = {"Customer": "public/js/customer.js"}

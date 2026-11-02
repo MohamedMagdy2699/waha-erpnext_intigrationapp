@@ -124,7 +124,6 @@ def _send_file(file_doc, chat_id, caption, base_url, api_key, session):
 
     # WAHA accepts Base64 data URIs for actual media/document content.
     encoded_file = base64.b64encode(file_bytes).decode("ascii")
-    data_uri = f"data:{mime_type};base64,{encoded_file}"
 
     payload = {
         "session": session,
@@ -132,12 +131,12 @@ def _send_file(file_doc, chat_id, caption, base_url, api_key, session):
         "file": {
             "mimetype": mime_type,
             "filename": file_doc.file_name,
-            "data": data_uri,
+            "data": encoded_file,
         },
         "caption": caption or "",
     }
 
-    endpoint = "sendImage" if mime_type.startswith("image/") else "sendFile"
+    endpoint = "sendImage" if mime_type == "image/jpeg" else "sendFile"
 
     return _waha_post(endpoint, payload, base_url, api_key)
 

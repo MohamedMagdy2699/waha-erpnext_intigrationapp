@@ -4,22 +4,31 @@ frappe.ui.form.on("Customer", {
         if (frm.is_new()) return;
 
         frm.add_custom_button(__("Send WhatsApp"), function () {
-            // Fetch the number automatically from the Customer document.
-            const customerNumber =
-                frm.doc.mobile_number ||
-                frm.doc.mobile_no ||
-                frm.doc.phone ||
-                "";
+
+    // Fetch the number from Customer or its linked Contacts.
+    frappe.call({
+        method: "waha_integration.api.get_customer_whatsapp_number",
+        args: {
+            customer: frm.doc.name
+        },
+        freeze: true,
+        freeze_message: __("Finding customer WhatsApp number..."),
+
+        callback: function (r) {
+            const customerNumber = r.message;
 
             if (!customerNumber) {
                 frappe.msgprint({
                     title: __("Mobile Number Missing"),
-                    message: __("Please fill in the customer's mobile number first."),
+                    message: __(
+                        "No mobile number was found in the Customer or its linked Contacts."
+                    ),
                     indicator: "orange"
                 });
                 return;
             }
 
+            // Keep the existing dialog code below this line.
             const dialog = new frappe.ui.Dialog({
                 title: __("Send WhatsApp Message"),
                 size: "large",
@@ -229,7 +238,7 @@ frappe.ui.form.on("Customer", {
             const fileInput = dialog.fields_dict.attachments_html
                 .$wrapper.find("[data-waha-attachments]");
 
-            fileInput.on("change", function () {
+                        fileInput.on("change", function () {
                 const names = Array.from(this.files || []).map(
                     file => file.name
                 );
@@ -241,8 +250,10 @@ frappe.ui.form.on("Customer", {
                             ? names.join(", ")
                             : __("No files selected")
                     );
-            });
-        });
-    }
-});
+               }); // End fileInput.on
 
+        } // End callback
+    }); // End frappe.call
+}); // End add_custom_button
+    } // End refresh
+}); // End frappe.ui.form.on

@@ -26,7 +26,81 @@ def get_waha_config():
 
     return base_url.rstrip("/"), api_key, session
 
+def get_customer_mobile(customer_name):
+    """Find a customer's number from Customer and linked Contact records."""
 
+    customer = frappe.get_doc("Customer", customer_name)
+
+    # 1. Customer fields
+    for field in ("mobile_number", "mobile_no", "phone"):
+        number = customer.get(field)
+        if number:
+            return number
+
+    # 2. Get linked Contacts, primary Contact first
+    contact_names = frappe.get_all(
+        "Dynamic Link",
+        filters={
+            "link_doctype": "Customer",
+            "link_name": customer_name,
+            "parenttype": "Contact",
+        },
+        pluck="parent",
+    )
+
+    primary_contact = customer.get("customer_primary_contact")
+
+    if primary_contact:
+        contact_names = [primary_contact] + [
+            name for name in contact_names if name != primary_contact
+        ]
+
+    # 3. Check each Contact
+    for contact_name in contact_names:
+        contact = frappe.get_doc("Contact", contact_name)
+
+        # Main Contact fields
+        for field in ("mobile_no", "phone"):
+            number = contact.get(field)
+            if number:
+                return number
+
+        # Contact phone-number child table
+        phone_rows = contact.get("phone_nos") or []
+
+        # Prefer primary mobile, then primary phone
+        phone_rows = sorted(
+            phone_rows,
+            key=lambda row: (
+                not row.get("is_primary_mobile_no"),
+                not row.get("is_primary_phone"),
+            ),
+        )
+
+        for row in phone_rows:
+            number = row.get("phone")
+            if number:
+                return number
+
+    return None
+
+
+@frappe.whitelist()
+def get_customer_whatsapp_number(customer):
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Login required."))
+
+    if not frappe.has_permission("Customer", "read", customer):
+        frappe.throw(_("You do not have permission to read this Customer."))
+
+    number = get_customer_mobile(customer)
+
+    if not number:
+        frappe.throw(
+            _("No mobile or phone number found in the Customer or its linked Contacts.")
+        )
+
+    return number
 def normalize_phone(phone):
     """Normalize an Egyptian or international phone number."""
 
@@ -157,11 +231,7 @@ def send_whatsapp_message(customer, message=None, attachments=None):
     customer_doc = frappe.get_doc("Customer", customer)
 
     # Use the requested mobile_number field first.
-    phone = (
-        customer_doc.get("mobile_number")
-        or customer_doc.get("mobile_no")
-        or customer_doc.get("phone")
-    )
+    phone = get_customer_mobile(customer)
 
     if not phone:
         frappe.throw(
